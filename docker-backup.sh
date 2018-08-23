@@ -79,7 +79,7 @@ function restore {
     [[ -z $4 ]]  && { echo -e "Missing Backup file name. Status: \e[1;31mFailure\e[0m"; exit 1; }
     local level=$(echo $3 | tr -cd '/' | wc -c)
     [[ "${str: -1}" == "/" ]] && level=$(( level - 1 ))
-    docker run --rm -u $1 -v /tmp/:/tmp/ -v $2:$3 busybox /bin/bash -c "tar xvf /tmp/$4 -C $3 --strip $level;"
+    docker run --rm -u $1 -v /tmp/:/tmp/ -v $2:$3 busybox /bin/sh -c "tar xvf /tmp/$4 -C $3 --strip $level;"
 }
 
 [[ -z $VOLUME_NAME ]] && { echo -e "Missing Volume name. Status: \e[1;31mFailure\e[0m"; exit 1; }
