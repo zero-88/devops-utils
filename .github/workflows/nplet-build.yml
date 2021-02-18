@@ -47,7 +47,7 @@ jobs:
         run: |
           images=${{ env.GHCR_REGISTRY }}/${{ env.PROJECT_NAME }}
           [[ "${{ steps.context.outputs.isTag }}" == "true" ]] && images=$images,${{ env.DOCKER_REGISTRY }}/${{ env.PROJECT_NAME }}
-          echo ::set-output name=argbashVersion::$(cat argbash.txt)
+          echo ::set-output name=argbashVersion::$(cat ./docker/nginx/argbash.txt)
           echo ::set-output name=images::$images
 
       - name: Docker meta
@@ -85,7 +85,7 @@ jobs:
         if: ${{ steps.context.outputs.decision_build == 'true' }}
         with:
           context: ./docker/nginx
-          file: Dockerfile
+          file: ./docker/nginx/Dockerfile
           build-args: |
             ARGBASH_VERSION=${{ steps.docker_context.outputs.argbashVersion }}
           tags: ${{ steps.docker_meta.outputs.tags }}
