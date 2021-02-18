@@ -21,16 +21,32 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+        with:
+          token: ${{ secrets.OSS_GITHUB_TOKEN }}
 
-      - name: context
+      - name: Import GPG key
+        uses: crazy-max/ghaction-import-gpg@v3
+        with:
+          git-user-signingkey: true
+          git-commit-gpgsign: true
+          git-tag-gpgsign: true
+          git-push-gpgsign: false
+          gpg-private-key: ${{ secrets.CI_GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.CI_GPG_PASSPHARSE }}
+
+      - name: Project context
         id: context
+        uses: zero88/gh-project-context@v1
+        with:
+          dry: false
+          mustSign: true
+          defaultBranch: master
+
+      - name: Docker context
+        id: docker_context
         run: |
           images=${{ env.GHCR_REGISTRY }}/${{ env.PROJECT_NAME }}
-          ref=${{ github.ref }}
-          isRelease=${{ startsWith(github.ref, 'refs/tags/v') }}
-          [[ $isRelease == "true" ]] && images=$images,${{ env.DOCKER_REGISTRY }}/${{ env.PROJECT_NAME }}
-          echo ::set-output name=isRelease::$isRelease
-          echo ::set-output name=version::${ref#refs/tags/v}
+          [[ "${{ steps.context.outputs.isTag }}" == "true" ]] && images=$images,${{ env.DOCKER_REGISTRY }}/${{ env.PROJECT_NAME }}
           echo ::set-output name=argbashVersion::$(cat argbash.txt)
           echo ::set-output name=images::$images
 
@@ -38,7 +54,7 @@ jobs:
         id: docker_meta
         uses: crazy-max/ghaction-docker-meta@v1
         with:
-          images: ${{ steps.context.outputs.images }}
+          images: ${{ steps.docker_context.outputs.images }}
           tag-latest: true
           tag-sha: true
           tag-semver: |
@@ -47,16 +63,18 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
+        if: ${{ steps.context.outputs.decision_build == 'true' }}
 
       - name: Login to DockerHub
         uses: docker/login-action@v1
-        if: ${{ steps.context.outputs.isRelease == 'true' }}
+        if: ${{ steps.context.outputs.isTag == 'true' }}
         with:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.OSS_GHA_DOCKER_HUB }}
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v1
+        if: ${{ steps.context.outputs.decision_build == 'true' }}
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
@@ -64,24 +82,25 @@ jobs:
 
       - name: Docker build
         uses: docker/build-push-action@v2
+        if: ${{ steps.context.outputs.decision_build == 'true' }}
         with:
-          context: .
+          context: ./docker/nginx
           file: Dockerfile
           build-args: |
-            ARGBASH_VERSION=${{ steps.context.outputs.argbashVersion }}
+            ARGBASH_VERSION=${{ steps.docker_context.outputs.argbashVersion }}
           tags: ${{ steps.docker_meta.outputs.tags }}
           labels: ${{ steps.docker_meta.outputs.labels }}
           push: true
 
       - name: Copy artifact
-        if: ${{ steps.context.outputs.isRelease == 'true' }}
+        if: ${{ steps.context.outputs.isTag == 'true' }}
         run: |
           docker create --name ${{ env.PROJECT_NAME }} ${{ env.GHCR_REGISTRY }}/${{ env.PROJECT_NAME }}:${{ steps.context.outputs.version }}
           docker cp ${{ env.PROJECT_NAME }}:/app/${{ env.PROJECT_NAME }} /tmp/${{ env.PROJECT_NAME }}
           docker rm -f ${{ env.PROJECT_NAME }}
 
       - name: Create Release
-        if: ${{ steps.context.outputs.isRelease == 'true' }}
+        if: ${{ steps.context.outputs.isTag == 'true' }}
         uses: softprops/action-gh-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
