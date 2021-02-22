@@ -71,7 +71,7 @@ NGINX_CERTS_FOLDER="certs"
 NGINX_HTML_FOLDER="html"
 NGINX_TMPL_FOLDER="tmpl"
 NGINX_VHOST_FOLDER="vhost"
-NGINX_HTPASSWD_FILE="htpasswd"
+NGINX_HTPASSWD_FOLDER="htpasswd"
 
 DOCKER_COMPOSE_FILE="docker-compose.yml"
 DOCKER_COMPOSE_V2_TMPL=$(cat <<-END
@@ -81,6 +81,7 @@ services:
   nginx-proxy:
     image: nginx:{{nginx_version}}
     container_name: $CONTAINER_NGINX
+    restart: always
     ports:
       - "80:80"
       - "443:443"
@@ -89,7 +90,7 @@ services:
       - {{deployment_dir}}/$NGINX_VHOST_FOLDER:/etc/nginx/vhost.d
       - {{deployment_dir}}/$NGINX_HTML_FOLDER:/usr/share/nginx/html
       - {{deployment_dir}}/$NGINX_CERTS_FOLDER:/etc/nginx/certs:ro
-      - {{deployment_dir}}/$NGINX_HTPASSWD_FILE:/etc/nginx/htpasswd:ro
+      - {{deployment_dir}}/$NGINX_HTPASSWD_FOLDER:/etc/nginx/htpasswd:ro
     labels:
       - "com.github.jrcs.letsencrypt_nginx_proxy_companion.nginx_proxy"
     logging:
@@ -101,6 +102,7 @@ services:
     image: {{docker_gen_image}}:{{docker_gen_version}}
     container_name: $CONTAINER_DOCKER_GEN
     command: -notify-sighup nginx-proxy -watch /etc/docker-gen/templates/nginx.tmpl /etc/nginx/conf.d/default.conf
+    restart: always
     volumes_from:
       - nginx-proxy
     volumes:
@@ -116,6 +118,7 @@ services:
   letsencrypt:
     image: jrcs/letsencrypt-nginx-proxy-companion:{{letsencrypt_version}}
     container_name: $CONTAINER_LETSENCRYPT
+    restart: always
     volumes_from:
       - nginx-proxy
     volumes:
@@ -144,8 +147,7 @@ function validate {
 
 function prepare {
     progress "Preparing deployment location..."
-    mkdir -p "$1/$NGINX_CONF_FOLDER" "$1/$NGINX_CERTS_FOLDER" "$1/$NGINX_HTML_FOLDER" "$1/$NGINX_TMPL_FOLDER" "$1/$NGINX_VHOST_FOLDER" 
-    touch "$1/$NGINX_HTPASSWD_FILE"
+    mkdir -p "$1/$NGINX_CONF_FOLDER" "$1/$NGINX_CERTS_FOLDER" "$1/$NGINX_HTML_FOLDER" "$1/$NGINX_TMPL_FOLDER" "$1/$NGINX_VHOST_FOLDER" "$1/$NGINX_HTPASSWD_FOLDER"
     progress "Downloading nginx template: '$_arg_nginx_tmpl'..."
     local nginx_tmpl_file="$1/$NGINX_TMPL_FOLDER/nginx.tmpl"
     local status=$(curl -sL -w "%{http_code}" -o "$nginx_tmpl_file" "$_arg_nginx_tmpl")
